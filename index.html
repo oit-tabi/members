@@ -363,7 +363,7 @@ let editingEvent = null;
 let addingTaskFor = null;
 let selectedRole = 'all';
 let newTaskRole = '企画';
-let currentYear = new Date().getFullYear();
+let currentYear = 2026; // 初期年度（アプリ開始年度）
 
 // ============================================================
 // INIT
@@ -528,6 +528,12 @@ async function changeYear(year) {
 }
 
 async function initYearWithTemplate(year) {
+  // 念のため再確認（他の端末で既に作成済みの場合を防ぐ）
+  const { data: existing } = await dbClient.from('events').select('id').eq('year', year).limit(1);
+  if (existing && existing.length > 0) {
+    await loadData();
+    return;
+  }
   toast('イベントを作成中...');
   for (let i = 0; i < DEFAULT_EVENTS.length; i++) {
     const tpl = DEFAULT_EVENTS[i];
