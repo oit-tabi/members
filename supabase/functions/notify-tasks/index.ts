@@ -97,7 +97,7 @@ serve(async () => {
     const msg = `✈️ OIT旅サー タスクリマインダー\n\n${urgency} ${ev.title}\n「${task.name}」\n期限: ${deadline.getMonth()+1}/${deadline.getDate()}（イベント: ${ev.date} 頃）`
     const refId = `deadline-${task.id}-${daysLeft}days`
 
-    const roleMembers = members.filter((mb: any) => mb.role === task.role && mb.line_user_id && !mb.banned)
+    const roleMembers = members.filter((mb: any) => mb.role === task.role && mb.line_user_id && !mb.banned && mb.notify !== false)
     for (const member of roleMembers) {
       if (await alreadySent(supabase, member.line_user_id, 'deadline', refId)) continue
       const ok = await sendLine(lineToken, member.line_user_id, msg)
@@ -136,7 +136,7 @@ serve(async () => {
       if (!prevTasksDone && i > 0) continue
 
       // 担当メンバーに通知
-      const roleMembers = members.filter((mb: any) => mb.role === role && mb.line_user_id && !mb.banned)
+      const roleMembers = members.filter((mb: any) => mb.role === role && mb.line_user_id && !mb.banned && mb.notify !== false)
       const taskNames = myTasks.map((t: any) => `・${t.name}`).join('\n')
       const msg = `✈️ OIT旅サー あなたの番です！\n\n【${ev.title}】\n\n以下のタスクをお願いします：\n${taskNames}\n${ev.date ? `\nイベント: ${ev.date} 頃` : ''}`
       const refId = `myturn-${ev.id}-${role}`
@@ -161,7 +161,7 @@ serve(async () => {
 
     if (undatedNextMonth.length > 0) {
       const planners = members.filter((mb: any) =>
-        ['代表','副代表','企画'].includes(mb.role) && mb.line_user_id && !mb.banned
+        ['代表','副代表','企画'].includes(mb.role) && mb.line_user_id && !mb.banned && mb.notify !== false
       )
       const eventList = undatedNextMonth.map((ev: any) => `・${ev.title}`).join('\n')
       const msg = `✈️ OIT旅サー 企画リマインダー\n\n来月（${nextMonth}月）のイベントの日程がまだ未定です。そろそろスケジュールを立てましょう！\n\n${eventList}\n\nアプリから日程を入力してください。`
@@ -172,6 +172,65 @@ serve(async () => {
         const ok = await sendLine(lineToken, member.line_user_id, msg)
         if (ok) { await markSent(supabase, member.line_user_id, 'planning', refId); sent++ }
       }
+    }
+  }
+
+  // ============================================================
+  // 通知4: 遅延通知（期限切れタスクがあれば代表・副代表に毎日通知）
+  // ============================================================
+  const overdueByEvent: Record<string, string[]> = {}
+
+  for (const task of allTasks.filter((t: any) => !t.done)) {
+    const ev = events.find((e: any) => e.id === task.event_id)
+    if (!ev?.date) continue
+
+    const m = ev.date.match(/(\d{1,2})[\/\-.](\d{1,2})/)
+    if (!m) continue
+
+    const eventDate = new Date(today.getFullYear(), +m[1]-1, +m[2])
+    if (eventDate < today) continue
+
+    const offset = task.offset_days ?? TASK_OFFSETS[ev.type]?.[task.name]
+    if (offset == null) continue
+
+    const deadline = new Date(eventDate)
+    deadline.setDate(deadline.getDate() + offset)
+    deadline.setHours(0, 0, 0, 0)
+    const daysLeft = Math.round((deadline.getTime() - today.getTime()) / 86400000)
+
+    if (daysLeft >= 0) continue // 期限切れのみ
+
+    const key = ev.title
+    if (!overdueByEvent[key]) overdueByEvent[key] = []
+    overdueByEvent[key].push(`・${task.name}（${task.role}・${Math.abs(daysLeft)}日超過）`)
+  }
+
+  if (Object.keys(overdueByEvent).length > 0) {
+    // 遅延通知は代表1人だけ（最初に見つかった代表のみ）
+    const leader = members.find((mb: any) =>
+      mb.role === '代表' && mb.line_user_id && !mb.banned && mb.notify !== false
+    )
+    const leaders = leader ? [leader] : []
+    const overdueList = Object.entries(overdueByEvent)
+      .map(([evTitle, tasks]) => `【${evTitle}】
+${tasks.join('
+')}`)
+      .join('
+
+')
+    const msg = `✈️ OIT旅サー 遅延アラート
+
+期限を超過しているタスクがあります。
+
+${overdueList}
+
+アプリで確認してください。`
+    const refId = `overdue-${today.getFullYear()}-${todayMonth}-${todayDay}`
+
+    for (const member of leaders) {
+      if (await alreadySent(supabase, member.line_user_id, 'overdue', refId)) continue
+      const ok = await sendLine(lineToken, member.line_user_id, msg)
+      if (ok) { await markSent(supabase, member.line_user_id, 'overdue', refId); sent++ }
     }
   }
 
