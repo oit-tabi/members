@@ -220,6 +220,7 @@
   <div class="topbar">
     <span style="font-size:18px">✈️</span>
     <span class="topbar-title">OIT旅サー</span>
+    <span id="year-badge" style="font-size:11px;color:var(--c-text-3);font-weight:500;margin-right:4px"></span>
     <div id="avatar-wrap" onclick="toggleUserMenu()"></div>
   </div>
   <div class="user-menu" id="user-menu">
@@ -231,6 +232,10 @@
     <div class="um-item" onclick="openMembersModal()">👥 メンバー一覧</div>
     <div class="um-item" onclick="sendSelfNotifyTest()">🔔 通知テスト（自分宛）</div>
     <div class="um-item" id="um-notify-test" onclick="sendNotifyTest()" style="display:none">📣 全員通知テスト（代表用）</div>
+    <div class="um-divider"></div>
+    <div class="um-section-label">年度</div>
+    <div id="um-year-items"></div>
+    <div class="um-divider"></div>
     <div class="um-item" onclick="logout()">ログアウト</div>
   </div>
 
@@ -338,6 +343,7 @@ let editingEvent = null;
 let addingTaskFor = null;
 let selectedRole = 'all';
 let newTaskRole = '企画';
+let currentYear = new Date().getFullYear();
 
 // ============================================================
 // INIT
@@ -452,6 +458,17 @@ function initApp() {
 
   document.getElementById('um-notify-test').style.display = currentUser.role === '代表' ? 'block' : 'none';
 
+  // 年度切り替えメニュー（前後2年）
+  const thisYear = new Date().getFullYear();
+  const years = [thisYear - 1, thisYear, thisYear + 1];
+  document.getElementById('um-year-items').innerHTML = years.map(y => {
+    const isCurrent = y === currentYear;
+    return `<div class="um-item${isCurrent?' current':''}" onclick="changeYear(${y})" style="${isCurrent?'font-weight:600;color:var(--c-teal);':''}">
+      ${isCurrent ? '✓ ' : ''}${y}年度
+    </div>`;
+  }).join('');
+  document.getElementById('year-badge').textContent = `${currentYear}年度`;
+
   const ms = document.getElementById('nef-month');
   ms.innerHTML = MONTHS.map(m => `<option value="${m}">${m}</option>`).join('');
   const ts = document.getElementById('nef-type');
@@ -471,6 +488,25 @@ async function changeMyRole(role) {
   document.getElementById('user-menu').classList.remove('open');
   initApp();
   toast(`役職を「${role}」に変更しました`);
+}
+
+function changeYear(year) {
+  currentYear = year;
+  document.getElementById('user-menu').classList.remove('open');
+  // 年度バッジ更新
+  document.getElementById('year-badge').textContent = `${currentYear}年度`;
+  // 年度メニュー更新
+  const thisYear = new Date().getFullYear();
+  const years = [thisYear - 1, thisYear, thisYear + 1];
+  document.getElementById('um-year-items').innerHTML = years.map(y => {
+    const isCurrent = y === currentYear;
+    return `<div class="um-item${isCurrent?' current':''}" onclick="changeYear(${y})" style="${isCurrent?'font-weight:600;color:var(--c-teal);':''}">
+      ${isCurrent ? '✓ ' : ''}${y}年度
+    </div>`;
+  }).join('');
+  toast(`${year}年度に切り替えました`);
+  // イベントデータを再読み込み（将来的に年度フィルタリング対応）
+  loadData();
 }
 
 async function sendNotifyTest() {
@@ -540,7 +576,7 @@ async function sendSelfNotifyTest() {
 // ============================================================
 async function loadData() {
   const [evRes, taskRes] = await Promise.all([
-    dbClient.from('events').select('*').order('sort_order', { ascending: true }),
+    dbClient.from('events').select('*').eq('year', currentYear).order('sort_order', { ascending: true }),
     dbClient.from('tasks').select('*'),
   ]);
   events = evRes.data || [];
@@ -583,7 +619,7 @@ async function deleteEventDB(evId) {
 }
 
 async function insertEvent(ev) {
-  const { data, error } = await dbClient.from('events').insert({ title: ev.title, month: ev.month, type: ev.type, date: null, place: null, memo: null, sort_order: events.length }).select().single();
+  const { data, error } = await dbClient.from('events').insert({ title: ev.title, month: ev.month, type: ev.type, date: null, place: null, memo: null, sort_order: events.length, year: currentYear }).select().single();
   if (error) { toast('追加に失敗しました'); console.error(error); return null; }
   return data;
 }
