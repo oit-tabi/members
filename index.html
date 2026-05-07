@@ -896,8 +896,8 @@ function renderEvents() {
               <option value="">日</option>
               ${Array.from({length:31},(_,i)=>i+1).map(d=>`<option value="${d}" ${g.date&&g.date.getDate()===d?'selected':''}>${d}日</option>`).join('')}
             </select>
-            <button class="deadline-save-btn" onclick="saveDeadline('${evId}', '${dlEditId}', [${g.taskList.map(t=>`'${t.id}'`).join(',')}])">保存</button>
-            <button class="deadline-clear-btn" onclick="clearDeadline('${evId}', '${dlEditId}', [${g.taskList.map(t=>`'${t.id}'`).join(',')}])">元に戻す</button>
+            <button class="deadline-save-btn" onclick="saveDeadline('${_evId}', '${dlEditId}', [${g.taskList.map(t=>`'${t.id}'`).join(',')}])">保存</button>
+            <button class="deadline-clear-btn" onclick="clearDeadline('${_evId}', '${dlEditId}', [${g.taskList.map(t=>`'${t.id}'`).join(',')}])">元に戻す</button>
           </div>
           <div class="tl-tasks">${items}</div>
         </div>
