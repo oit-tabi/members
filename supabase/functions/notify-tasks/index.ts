@@ -212,19 +212,9 @@ serve(async () => {
     )
     const leaders = leader ? [leader] : []
     const overdueList = Object.entries(overdueByEvent)
-      .map(([evTitle, tasks]) => `【${evTitle}】
-${tasks.join('
-')}`)
-      .join('
-
-')
-    const msg = `✈️ OIT旅サー 遅延アラート
-
-期限を超過しているタスクがあります。
-
-${overdueList}
-
-アプリで確認してください。`
+      .map(([evTitle, tasks]) => `【${evTitle}】\n${tasks.join('\n')}`)
+      .join('\n\n')
+    const msg = `✈️ OIT旅サー 遅延アラート\n\n期限を超過しているタスクがあります。\n\n${overdueList}\n\nアプリで確認してください。`
     const refId = `overdue-${today.getFullYear()}-${todayMonth}-${todayDay}`
 
     for (const member of leaders) {
