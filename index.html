@@ -26,7 +26,10 @@
     // ========================================================
     </script>
 
+ 
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -491,20 +494,33 @@ let newTaskRole = '企画';
 window.addEventListener('load', async () => {
   dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // LINEログインのコールバック処理
-  const params = new URLSearchParams(location.search);
-  if (params.get('code') && params.get('state')) {
-    await handleLineCallback(params.get('code'), params.get('state'));
-    history.replaceState({}, '', location.pathname);
-    return;
-  }
+  try {
+    await liff.init({ liffId: LIFF_ID });
 
-  const saved = localStorage.getItem('oit_user');
-  if (saved) {
-    currentUser = JSON.parse(saved);
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+
+    const profile = await liff.getProfile();
+    currentUser = {
+      userId: profile.userId,
+      displayName: profile.displayName,
+      pictureUrl: profile.pictureUrl,
+    };
+    localStorage.setItem('oit_user', JSON.stringify(currentUser));
     await checkMemberAndLoad();
-  } else {
-    show('login-screen');
+
+  } catch (e) {
+    console.error('LIFF init error:', e);
+    // LIFF外（PC等）からアクセスした場合は従来のLINEログインにフォールバック
+    const saved = localStorage.getItem('oit_user');
+    if (saved) {
+      currentUser = JSON.parse(saved);
+      await checkMemberAndLoad();
+    } else {
+      show('login-screen');
+    }
   }
 });
 
