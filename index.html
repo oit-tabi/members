@@ -865,6 +865,7 @@ function renderEvents() {
 
     const groups = groupByDeadline(ev.id, eventDate, ev.type);
     const noDateHint = !eventDate ? `<div class="nodate-hint">📅 仮日程を入力すると準備期限が自動で計算されます</div>` : '';
+    const _evId = ev.id;
     const tlHTML = groups.map(g => {
       const allDone = g.taskList.every(t => t.done);
       const info = deadlineInfo(g.date, allDone);
@@ -872,7 +873,7 @@ function renderEvents() {
         const rc = ROLE_COLORS[t.role] || { bg:'var(--c-blue-bg)', text:'var(--c-blue-text)' };
         const isMine = selectedRole !== 'all' && t.role === selectedRole;
         const isHide = selectedRole !== 'all' && t.role !== selectedRole;
-        return `<div class="tl-task${t.done?' done':''}${isMine?' mine':''}${isHide?' hidden':''}" onclick="toggleTask('${ev.id}','${t.id}')">
+        return `<div class="tl-task${t.done?' done':''}${isMine?' mine':''}${isHide?' hidden':''}" onclick="toggleTask('${_evId}','${t.id}')">
           <div class="tl-check${t.done?' checked':''}">
             ${t.done ? `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>` : ''}
           </div>
@@ -880,7 +881,7 @@ function renderEvents() {
           <span class="tl-role" style="background:${rc.bg};color:${rc.text}">${t.role}</span>
         </div>`;
       }).join('');
-      const dlEditId = `dle-${evId}-${g.date ? g.date.toDateString().replace(/ /g,'') : 'nodate'}`;
+      const dlEditId = `dle-${_evId}-${g.date ? g.date.toDateString().replace(/ /g,'') : 'nodate'}`;
       const canEdit = CAN_EDIT_SCHEDULE.includes(currentUser.role);
       return `<div class="tl-item">
         <div class="tl-left"><div class="tl-dot" style="background:${info.dot}"></div><div class="tl-line"></div></div>
