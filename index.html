@@ -278,11 +278,12 @@ const ROLE_COLORS = {
   '宣伝': { bg: 'var(--c-coral-bg)', text: 'var(--c-coral-text)' },
 };
 const ROLES = Object.keys(ROLE_COLORS);
-const ALL_ROLES = ['代表','企画','渉外','会計','宣伝','一般'];
+const ALL_ROLES = ['代表','副代表','企画','渉外','会計','宣伝','一般'];
+const CAN_EDIT_SCHEDULE = ['代表','副代表','企画'];
 const ROLE_PALETTE = {
-  '代表':['#EEEDFE','#534AB7'],'企画':['#E6F1FB','#185FA5'],
-  '渉外':['#E1F5EE','#0F6E56'],'会計':['#FAEEDA','#854F0B'],
-  '宣伝':['#FAECE7','#993C1D'],'一般':['#F1EFE8','#5F5E5A'],
+  '代表':['#EEEDFE','#534AB7'],'副代表':['#F0EEFF','#7B6FD0'],
+  '企画':['#E6F1FB','#185FA5'],'渉外':['#E1F5EE','#0F6E56'],
+  '会計':['#FAEEDA','#854F0B'],'宣伝':['#FAECE7','#993C1D'],'一般':['#F1EFE8','#5F5E5A'],
 };
 
 const TASK_TEMPLATES = {
@@ -458,15 +459,8 @@ function initApp() {
 
   document.getElementById('um-notify-test').style.display = currentUser.role === '代表' ? 'block' : 'none';
 
-  // 年度切り替えメニュー（前後2年）
-  const thisYear = new Date().getFullYear();
-  const years = [thisYear - 1, thisYear, thisYear + 1];
-  document.getElementById('um-year-items').innerHTML = years.map(y => {
-    const isCurrent = y === currentYear;
-    return `<div class="um-item${isCurrent?' current':''}" onclick="changeYear(${y})" style="${isCurrent?'font-weight:600;color:var(--c-teal);':''}">
-      ${isCurrent ? '✓ ' : ''}${y}年度
-    </div>`;
-  }).join('');
+  // 年度切り替えメニュー
+  renderYearMenu();
   document.getElementById('year-badge').textContent = `${currentYear}年度`;
 
   const ms = document.getElementById('nef-month');
@@ -490,22 +484,20 @@ async function changeMyRole(role) {
   toast(`役職を「${role}」に変更しました`);
 }
 
+function renderYearMenu() {
+  document.getElementById('um-year-items').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 16px;">
+      <button onclick="changeYear(currentYear-1)" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--c-border-strong);background:transparent;color:var(--c-text-2);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">−</button>
+      <span style="flex:1;text-align:center;font-size:15px;font-weight:600;color:var(--c-text)">${currentYear}年度</span>
+      <button onclick="changeYear(currentYear+1)" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--c-border-strong);background:transparent;color:var(--c-text-2);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">＋</button>
+    </div>`;
+}
+
 function changeYear(year) {
   currentYear = year;
-  document.getElementById('user-menu').classList.remove('open');
-  // 年度バッジ更新
   document.getElementById('year-badge').textContent = `${currentYear}年度`;
-  // 年度メニュー更新
-  const thisYear = new Date().getFullYear();
-  const years = [thisYear - 1, thisYear, thisYear + 1];
-  document.getElementById('um-year-items').innerHTML = years.map(y => {
-    const isCurrent = y === currentYear;
-    return `<div class="um-item${isCurrent?' current':''}" onclick="changeYear(${y})" style="${isCurrent?'font-weight:600;color:var(--c-teal);':''}">
-      ${isCurrent ? '✓ ' : ''}${y}年度
-    </div>`;
-  }).join('');
+  renderYearMenu();
   toast(`${year}年度に切り替えました`);
-  // イベントデータを再読み込み（将来的に年度フィルタリング対応）
   loadData();
 }
 
@@ -657,6 +649,17 @@ function calcDeadline(eventDate, offset) {
 
 function fmt(d) { return d ? `${d.getMonth()+1}/${d.getDate()}` : ''; }
 
+function sortEventsByDate(evList) {
+  return [...evList].sort((a, b) => {
+    const da = parseDate(a.date);
+    const db = parseDate(b.date);
+    if (!da && !db) return (a.sort_order||0) - (b.sort_order||0);
+    if (!da) return 1;
+    if (!db) return -1;
+    return da - db;
+  });
+}
+
 function deadlineInfo(d, done) {
   if (!d) return { text: '日程未定', cls: 'nodate', dot: 'var(--c-border-strong)' };
   const days = Math.round((d.setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
@@ -699,7 +702,8 @@ function setRole(role) { selectedRole = role; renderRoleChips(); renderEvents();
 function renderEvents() {
   const c = document.getElementById('events-container');
   c.innerHTML = '';
-  const filtered = selectedRole === 'all' ? events : events.filter(ev => (tasks[ev.id]||[]).some(t => t.role === selectedRole));
+  const base = selectedRole === 'all' ? events : events.filter(ev => (tasks[ev.id]||[]).some(t => t.role === selectedRole));
+  const filtered = sortEventsByDate(base);
   if (!filtered.length) { c.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--c-text-3);font-size:14px">該当するイベントがありません</div>'; return; }
 
   filtered.forEach(ev => {
@@ -723,9 +727,17 @@ function renderEvents() {
         <div class="ef-item"><label>月</label><select id="ef-month-${ev.id}">${monthOpts}</select></div>
         <div class="ef-item"><label>種別</label><select id="ef-type-${ev.id}">${typeOpts}</select></div>
         <div class="ef-item ef-full">
-          <label>仮日程（例: 6/14）</label>
-          <input type="text" id="ef-date-${ev.id}" value="${ev.date||''}" placeholder="6/14" inputmode="numeric" />
-          <div class="ef-date-hint">確定前でOK。± 1週間程度の変動を想定して入力してください</div>
+          <label>仮日程（確定前でOK・± 1週間程度の変動想定）</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <select id="ef-month-date-${ev.id}" style="font-size:15px;padding:9px 11px;border:1px solid var(--c-border-strong);border-radius:var(--radius-sm);background:var(--c-surface);color:var(--c-text);-webkit-appearance:none;">
+              <option value="">月を選択</option>
+              ${[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<option value="${m}" ${ev.date&&ev.date.split('/')[0]==m?'selected':''}>${m}月</option>`).join('')}
+            </select>
+            <select id="ef-day-${ev.id}" style="font-size:15px;padding:9px 11px;border:1px solid var(--c-border-strong);border-radius:var(--radius-sm);background:var(--c-surface);color:var(--c-text);-webkit-appearance:none;">
+              <option value="">日を選択</option>
+              ${Array.from({length:31},(_,i)=>i+1).map(d=>`<option value="${d}" ${ev.date&&ev.date.split('/')[1]==d?'selected':''}>${d}日</option>`).join('')}
+            </select>
+          </div>
         </div>
         <div class="ef-item ef-full"><label>場所（任意）</label><input type="text" id="ef-place-${ev.id}" value="${escHtml(ev.place||'')}" placeholder="例: 梅田 居酒屋" /></div>
         <div class="ef-item ef-full"><label>メモ・予算（任意）</label><textarea id="ef-memo-${ev.id}" placeholder="例: 一人3,000円くらい">${escHtml(ev.memo||'')}</textarea></div>
@@ -782,7 +794,7 @@ function renderEvents() {
       <div class="prog-bar"><div class="prog-fill" style="width:${prog}%;background:${progColor}"></div></div>
       <div class="event-body${isOpen?' open':''}">
         <div class="sec-label">日程
-          <button class="edit-toggle-btn" onclick="toggleEdit('${ev.id}');event.stopPropagation()">${isEditing ? '✕ 閉じる' : '✎ 編集'}</button>
+          ${CAN_EDIT_SCHEDULE.includes(currentUser.role) ? `<button class="edit-toggle-btn" onclick="toggleEdit('${ev.id}');event.stopPropagation()">${isEditing ? '✕ 閉じる' : '✎ 編集'}</button>` : ''}
         </div>
         ${editForm}${dateArea}
         <div class="sec-label" style="margin-top:14px">タスク・準備スケジュール</div>
@@ -816,7 +828,9 @@ async function saveEdit(evId) {
   ev.title = document.getElementById(`ef-title-${evId}`).value || ev.title;
   ev.month = document.getElementById(`ef-month-${evId}`).value;
   ev.type = newType;
-  ev.date = document.getElementById(`ef-date-${evId}`).value;
+  const m = document.getElementById(`ef-month-date-${evId}`)?.value;
+  const d = document.getElementById(`ef-day-${evId}`)?.value;
+  ev.date = (m && d) ? `${m}/${d}` : '';
   ev.place = document.getElementById(`ef-place-${evId}`).value;
   ev.memo = document.getElementById(`ef-memo-${evId}`).value;
   editingEvent = null;
