@@ -25,7 +25,7 @@
 
     // ========================================================
     </script>
-  
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
   <style>
@@ -475,7 +475,7 @@ const MONTH_STYLE = {
 // ============================================================
 // STATE
 // ============================================================
-let supabase = null;
+let dbClient = null;
 let currentUser = null;
 let events = [];
 let tasks = {};
@@ -489,7 +489,7 @@ let newTaskRole = '企画';
 // INIT
 // ============================================================
 window.addEventListener('load', async () => {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // LINEログインのコールバック処理
   const params = new URLSearchParams(location.search);
@@ -536,7 +536,7 @@ async function handleLineCallback(code, state) {
   show('loading');
   try {
     // Supabase Edge Function でトークン交換・プロフィール取得
-    const { data, error } = await supabase.functions.invoke('line-auth', {
+    const { data, error } = await dbClient.functions.invoke('line-auth', {
       body: { code, redirect_uri: APP_URL }
     });
     if (error || !data?.userId) throw error || new Error('auth failed');
@@ -552,7 +552,7 @@ async function handleLineCallback(code, state) {
 
 async function checkMemberAndLoad() {
   show('loading');
-  const { data, error } = await supabase
+  const { data, error } = await dbClient
     .from('members')
     .select('*')
     .eq('line_user_id', currentUser.userId)
@@ -613,8 +613,8 @@ function initApp() {
 // ============================================================
 async function loadData() {
   const [evRes, taskRes] = await Promise.all([
-    supabase.from('events').select('*').order('sort_order', { ascending: true }),
-    supabase.from('tasks').select('*'),
+    dbClient.from('events').select('*').order('sort_order', { ascending: true }),
+    dbClient.from('tasks').select('*'),
   ]);
   events = evRes.data || [];
   const allTasks = taskRes.data || [];
@@ -627,7 +627,7 @@ async function loadData() {
 }
 
 async function saveEvent(ev) {
-  const { error } = await supabase.from('events').upsert({
+  const { error } = await dbClient.from('events').upsert({
     id: ev.id, title: ev.title, month: ev.month, type: ev.type,
     date: ev.date || null, place: ev.place || null, memo: ev.memo || null,
     sort_order: ev.sort_order || 0,
@@ -636,7 +636,7 @@ async function saveEvent(ev) {
 }
 
 async function saveTask(t) {
-  const { error } = await supabase.from('tasks').upsert({
+  const { error } = await dbClient.from('tasks').upsert({
     id: t.id, event_id: t.event_id, name: t.name,
     role: t.role, done: t.done, offset_days: t.offset_days ?? null,
   });
@@ -644,12 +644,12 @@ async function saveTask(t) {
 }
 
 async function deleteEventDB(evId) {
-  await supabase.from('tasks').delete().eq('event_id', evId);
-  await supabase.from('events').delete().eq('id', evId);
+  await dbClient.from('tasks').delete().eq('event_id', evId);
+  await dbClient.from('events').delete().eq('id', evId);
 }
 
 async function insertEvent(ev) {
-  const { data, error } = await supabase.from('events').insert({
+  const { data, error } = await dbClient.from('events').insert({
     title: ev.title, month: ev.month, type: ev.type,
     date: null, place: null, memo: null, sort_order: events.length,
   }).select().single();
@@ -663,7 +663,7 @@ async function insertTasks(evId, type) {
     event_id: evId, name: t.name, role: t.role,
     done: false, offset_days: t.offset ?? null, sort_order: i,
   }));
-  const { data, error } = await supabase.from('tasks').insert(rows).select();
+  const { data, error } = await dbClient.from('tasks').insert(rows).select();
   if (error) { console.error(error); return []; }
   return data;
 }
@@ -896,7 +896,7 @@ async function saveEdit(evId) {
   await saveEvent(ev);
 
   if (newType !== oldType) {
-    await supabase.from('tasks').delete().eq('event_id', evId);
+    await dbClient.from('tasks').delete().eq('event_id', evId);
     const newTasks = await insertTasks(evId, newType);
     tasks[evId] = newTasks;
   }
@@ -915,7 +915,7 @@ async function commitTask(evId) {
   const inp = document.getElementById(`atf-name-${evId}`);
   const name = inp?.value.trim(); if (!name) return;
   const row = { event_id: evId, name, role: newTaskRole, done: false, offset_days: null };
-  const { data, error } = await supabase.from('tasks').insert(row).select().single();
+  const { data, error } = await dbClient.from('tasks').insert(row).select().single();
   if (error) { toast('追加に失敗しました'); return; }
   if (!tasks[evId]) tasks[evId] = [];
   tasks[evId].push(data);
