@@ -26,8 +26,6 @@
     // ========================================================
     </script>
 
- 
-
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
@@ -369,7 +367,7 @@
 <div id="unauthorized-screen" style="display:none">
   <div class="unauth-icon">🔒</div>
   <div class="unauth-title">アクセスできません</div>
-  <div class="unauth-sub">このアカウントはメンバーとして<br>登録されていません。<br>代表に連絡してLINE IDを登録してもらってください。</div>
+  <div class="unauth-sub">このアカウントはアクセスが<br>制限されています。<br>心当たりがある場合は代表に連絡してください。</div>
   <button class="logout-btn-small" onclick="logout()">別のアカウントでログイン</button>
 </div>
 
@@ -575,9 +573,35 @@ async function checkMemberAndLoad() {
     .single();
 
   if (error || !data) {
+    // 未登録なら自動で登録
+    const { data: newMember, error: insertError } = await dbClient
+      .from('members')
+      .insert({
+        line_user_id: currentUser.userId,
+        name: currentUser.displayName,
+        role: '一般',
+        banned: false,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('登録エラー:', insertError);
+      show('unauthorized-screen');
+      return;
+    }
+    currentUser.role = newMember.role;
+    currentUser.name = newMember.name;
+    initApp();
+    return;
+  }
+
+  // BANされていたらアクセス拒否
+  if (data.banned) {
     show('unauthorized-screen');
     return;
   }
+
   currentUser.role = data.role;
   currentUser.name = data.name || currentUser.displayName;
   initApp();
