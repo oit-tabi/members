@@ -326,6 +326,19 @@ const TASK_TEMPLATES = {
 };
 
 const MONTHS = ['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
+
+const DEFAULT_EVENTS = [
+  { month:'4月', title:'新歓・顔合わせ', type:'飲み会系' },
+  { month:'5月', title:'小旅行（日帰り）', type:'日帰り系' },
+  { month:'6月', title:'BBQ', type:'日帰り系' },
+  { month:'7月', title:'8月の計画会', type:'飲み会系' },
+  { month:'8月', title:'キャンプ合宿（1泊2日）', type:'泊まり系' },
+  { month:'9月', title:'日帰り弾丸旅行', type:'日帰り系' },
+  { month:'10月', title:'11月の計画会', type:'飲み会系' },
+  { month:'11月', title:'北山祭', type:'日帰り系' },
+  { month:'12月', title:'忘年会', type:'飲み会系' },
+  { month:'3月', title:'スキー日帰り', type:'日帰り系' },
+];
 const MONTH_STYLE = {
   '4月':['var(--c-blue-bg)','var(--c-blue-text)'],
   '5月':['var(--c-teal-bg)','var(--c-teal-text)'],
@@ -501,12 +514,37 @@ function renderYearMenu() {
     </div>`;
 }
 
-function changeYear(year) {
+async function changeYear(year) {
   currentYear = year;
   document.getElementById('year-badge').textContent = `${currentYear}年度`;
   renderYearMenu();
+  document.getElementById('user-menu').classList.remove('open');
   toast(`${year}年度に切り替えました`);
-  loadData();
+  await loadData();
+  // イベントがなければテンプレートから自動作成
+  if (events.length === 0) {
+    await initYearWithTemplate(year);
+  }
+}
+
+async function initYearWithTemplate(year) {
+  toast('イベントを作成中...');
+  for (let i = 0; i < DEFAULT_EVENTS.length; i++) {
+    const tpl = DEFAULT_EVENTS[i];
+    const { data: newEv } = await dbClient.from('events').insert({
+      title: tpl.title, month: tpl.month, type: tpl.type,
+      date: null, place: null, memo: null, sort_order: i, year: currentYear
+    }).select().single();
+    if (!newEv) continue;
+    const tpls = TASK_TEMPLATES[tpl.type] || [];
+    const rows = tpls.map((t, j) => ({
+      event_id: newEv.id, name: t.name, role: t.role,
+      done: false, offset_days: t.offset ?? null, sort_order: j
+    }));
+    if (rows.length) await dbClient.from('tasks').insert(rows);
+  }
+  await loadData();
+  toast(`${year}年度のイベントを作成しました`);
 }
 
 async function sendNotifyTest() {
