@@ -465,13 +465,12 @@ function initApp() {
 async function changeMyRole(role) {
   const { error } = await dbClient.from('members').update({ role }).eq('line_user_id', currentUser.userId);
   if (error) { toast('変更に失敗しました'); return; }
-  // Supabaseから最新データを取得して確認
-  const { data } = await dbClient.from('members').select('role').eq('line_user_id', currentUser.userId).single();
-  currentUser.role = data?.role || role;
+  // updateの結果を直接使う（再取得しない）
+  currentUser.role = role;
   localStorage.setItem('oit_user', JSON.stringify(currentUser));
   document.getElementById('user-menu').classList.remove('open');
   initApp();
-  toast(`役職を「${currentUser.role}」に変更しました`);
+  toast(`役職を「${role}」に変更しました`);
 }
 
 async function sendNotifyTest() {
