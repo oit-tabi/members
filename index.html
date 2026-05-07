@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OIT旅サー 活動管理</title>
+
+  <script>
+    // ========================================================
+    // ここだけ書き換えてください
+    // ========================================================
+
+    // 1. Supabase > Settings > API > Project URL
+    const SUPABASE_URL      = 'YOUR_SUPABASE_URL';
+
+    // 2. Supabase > Settings > API > Publishable key (anon)
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+    // 3. LINE Developers > チャンネル基本設定 > Channel ID
+    const LINE_CLIENT_ID    = 'YOUR_LINE_CLIENT_ID';
+
+    // 4. 変更不要（membersリポジトリのGitHub Pages URL）
+    const APP_URL           = 'https://oit-tabi.github.io/members';
+
+    // ========================================================
+  </script>
+
+  <script>
+    const SUPABASE_URL     = 'YOUR_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+    const LINE_CLIENT_ID   = 'YOUR_LINE_CLIENT_ID';
+    // デプロイ先URL（GitHub Pages URL に変更してください）
+    const APP_URL          = 'https://oit-tabi.github.io/members';
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --c-bg: #f7f6f2;
+      --c-surface: #ffffff;
+      --c-border: rgba(0,0,0,0.08);
+      --c-border-strong: rgba(0,0,0,0.15);
+      --c-text: #1a1a1a;
+      --c-text-2: #555;
+      --c-text-3: #999;
+      --c-teal: #1D9E75;
+      --c-teal-bg: #E1F5EE;
+      --c-teal-text: #0F6E56;
+      --c-blue: #378ADD;
+      --c-blue-bg: #E6F1FB;
+      --c-blue-text: #185FA5;
+      --c-amber: #BA7517;
+      --c-amber-bg: #FAEEDA;
+      --c-amber-text: #854F0B;
+      --c-red: #E24B4A;
+      --c-red-bg: #FCEBEB;
+      --c-red-text: #A32D2D;
+      --c-purple-bg: #EEEDFE;
+      --c-purple-text: #534AB7;
+      --c-coral-bg: #FAECE7;
+      --c-coral-text: #993C1D;
+      --c-green-bg: #EAF3DE;
+      --c-green-text: #3B6D11;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --c-bg: #111;
+        --c-surface: #1c1c1e;
+        --c-border: rgba(255,255,255,0.08);
+        --c-border-strong: rgba(255,255,255,0.15);
+        --c-text: #f0f0f0;
+        --c-text-2: #aaa;
+        --c-text-3: #666;
+        --c-teal-bg: #0a2e22;
+        --c-teal-text: #5DCAA5;
+        --c-blue-bg: #0c1e33;
+        --c-blue-text: #85B7EB;
+        --c-amber-bg: #2a1e07;
+        --c-amber-text: #EF9F27;
+        --c-red-bg: #2a0a0a;
+        --c-red-text: #F09595;
+        --c-purple-bg: #1a1540;
+        --c-purple-text: #AFA9EC;
+        --c-coral-bg: #2a1008;
+        --c-coral-text: #F0997B;
+        --c-green-bg: #0e1f06;
+        --c-green-text: #97C459;
+      }
+    }
+
+    html, body { height: 100%; background: var(--c-bg); color: var(--c-text); font-family: -apple-system, 'Helvetica Neue', sans-serif; }
+
+    /* ===== LOGIN ===== */
+    #login-screen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 2rem;
+    }
+    .login-logo { font-size: 36px; margin-bottom: 8px; }
+    .login-title { font-size: 22px; font-weight: 600; margin-bottom: 6px; color: var(--c-text); }
+    .login-sub { font-size: 14px; color: var(--c-text-2); margin-bottom: 2rem; text-align: center; line-height: 1.6; }
+    .line-login-btn {
+      display: flex; align-items: center; gap: 10px;
+      background: #06C755; color: #fff; border: none;
+      padding: 14px 28px; border-radius: 50px; font-size: 16px; font-weight: 600;
+      cursor: pointer; width: 100%; max-width: 300px; justify-content: center;
+      box-shadow: 0 2px 8px rgba(6,199,85,0.3);
+    }
+    .line-login-btn:active { opacity: 0.85; transform: scale(0.98); }
+    .login-note { font-size: 12px; color: var(--c-text-3); margin-top: 1.5rem; text-align: center; line-height: 1.6; }
+
+    #unauthorized-screen {
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 2rem; text-align: center;
+    }
+    .unauth-icon { font-size: 48px; margin-bottom: 12px; }
+    .unauth-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+    .unauth-sub { font-size: 14px; color: var(--c-text-2); line-height: 1.6; margin-bottom: 2rem; }
+    .logout-btn-small { font-size: 13px; padding: 8px 16px; border: 1px solid var(--c-border-strong); border-radius: 20px; background: transparent; color: var(--c-text-2); cursor: pointer; }
+
+    /* ===== APP ===== */
+    #app { display: none; max-width: 480px; margin: 0 auto; padding: 0 0 80px; }
+
+    .topbar {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--c-bg); border-bottom: 0.5px solid var(--c-border);
+      padding: 12px 16px; display: flex; align-items: center; gap: 10px;
+    }
+    .topbar-title { font-size: 16px; font-weight: 600; flex: 1; }
+    .topbar-avatar {
+      width: 32px; height: 32px; border-radius: 50%; object-fit: cover;
+      border: 1.5px solid var(--c-border-strong); cursor: pointer;
+    }
+    .topbar-avatar-placeholder {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--c-blue-bg); color: var(--c-blue-text);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      border: 1.5px solid var(--c-border-strong);
+    }
+
+    .main-pad { padding: 16px; }
+
+    /* role filter */
+    .filter-label { font-size: 11px; font-weight: 600; color: var(--c-text-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+    .chip {
+      font-size: 13px; padding: 6px 13px; border-radius: 20px;
+      border: 1px solid var(--c-border-strong); background: var(--c-surface);
+      color: var(--c-text-2); cursor: pointer; white-space: nowrap;
+      min-height: 34px; display: flex; align-items: center;
+      transition: all 0.15s;
+    }
+    .chip.active { font-weight: 600; }
+
+    /* event card */
+    .event-card {
+      background: var(--c-surface); border: 0.5px solid var(--c-border);
+      border-radius: var(--radius); margin-bottom: 10px;
+      overflow: hidden; box-shadow: var(--shadow);
+    }
+    .event-header {
+      padding: 13px 14px; cursor: pointer;
+      display: flex; align-items: center; gap: 10px; min-height: 58px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .event-header:active { background: var(--c-bg); }
+    .month-badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; flex-shrink: 0; }
+    .ev-title-wrap { flex: 1; min-width: 0; }
+    .ev-title { font-size: 14px; font-weight: 600; color: var(--c-text); }
+    .ev-sub { font-size: 11px; color: var(--c-text-3); margin-top: 2px; }
+    .prog-pct { font-size: 12px; color: var(--c-text-3); flex-shrink: 0; }
+    .chevron { color: var(--c-text-3); font-size: 18px; transition: transform 0.2s; flex-shrink: 0; line-height: 1; }
+    .chevron.open { transform: rotate(180deg); }
+    .prog-bar { height: 3px; background: var(--c-border); }
+    .prog-fill { height: 100%; transition: width 0.35s; }
+
+    .event-body { display: none; padding: 0 14px 14px; border-top: 0.5px solid var(--c-border); }
+    .event-body.open { display: block; }
+
+    .sec-label {
+      font-size: 11px; font-weight: 600; color: var(--c-text-3);
+      text-transform: uppercase; letter-spacing: 0.06em;
+      margin: 14px 0 8px; display: flex; align-items: center;
+    }
+
+    /* date display */
+    .date-box {
+      background: var(--c-bg); border-radius: var(--radius-sm);
+      padding: 10px 12px; margin-bottom: 4px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .date-main { font-size: 16px; font-weight: 600; flex: 1; }
+    .date-provisional { font-size: 11px; color: var(--c-text-3); font-weight: 400; }
+    .date-note { font-size: 11px; color: var(--c-amber-text); background: var(--c-amber-bg); padding: 4px 10px; border-radius: 20px; }
+
+    /* edit form */
+    .edit-form { display: none; background: var(--c-bg); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px; }
+    .edit-form.open { display: block; }
+    .ef-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-bottom: 8px; }
+    .ef-full { grid-column: 1 / -1; }
+    .ef-item label { display: block; font-size: 11px; color: var(--c-text-3); margin-bottom: 4px; }
+    .ef-item input, .ef-item select, .ef-item textarea {
+      width: 100%; font-size: 15px; padding: 9px 11px;
+      border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm);
+      background: var(--c-surface); color: var(--c-text);
+      -webkit-appearance: none; appearance: none;
+    }
+    .ef-item textarea { font-size: 13px; resize: none; min-height: 60px; line-height: 1.5; }
+    .ef-item input:focus, .ef-item select:focus, .ef-item textarea:focus { outline: none; border-color: var(--c-blue); }
+    .ef-date-hint { font-size: 11px; color: var(--c-text-3); margin-top: 4px; }
+    .save-btn {
+      width: 100%; padding: 10px; font-size: 14px; font-weight: 600;
+      background: var(--c-teal); color: #fff; border: none;
+      border-radius: var(--radius-sm); cursor: pointer; margin-top: 4px;
+    }
+    .save-btn:active { opacity: 0.85; }
+    .edit-toggle-btn {
+      margin-left: auto; font-size: 12px; padding: 5px 10px;
+      border: 1px solid var(--c-border-strong); border-radius: 20px;
+      background: transparent; color: var(--c-text-2); cursor: pointer;
+    }
+
+    /* timeline */
+    .timeline { display: flex; flex-direction: column; }
+    .tl-item { display: flex; gap: 10px; }
+    .tl-left { display: flex; flex-direction: column; align-items: center; width: 22px; flex-shrink: 0; }
+    .tl-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 7px; }
+    .tl-line { width: 1px; background: var(--c-border); flex: 1; margin-top: 3px; min-height: 10px; }
+    .tl-item:last-child .tl-line { display: none; }
+    .tl-right { padding-bottom: 12px; flex: 1; min-width: 0; }
+    .tl-dl-label { font-size: 11px; font-weight: 600; margin-bottom: 5px; }
+    .tl-dl-label.overdue { color: var(--c-red-text); }
+    .tl-dl-label.soon { color: var(--c-amber-text); }
+    .tl-dl-label.ok { color: var(--c-teal-text); }
+    .tl-dl-label.nodate { color: var(--c-text-3); }
+
+    .tl-tasks { display: flex; flex-direction: column; gap: 4px; }
+    .tl-task {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 11px; border-radius: var(--radius-sm);
+      border: 1px solid var(--c-border); min-height: 44px;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+      transition: background 0.1s;
+    }
+    .tl-task:active { background: var(--c-bg); }
+    .tl-task.done { background: var(--c-bg); }
+    .tl-task.mine { border-color: var(--c-blue); background: var(--c-blue-bg); }
+    .tl-task.hidden { display: none; }
+    .tl-check {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2px solid var(--c-border-strong); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .tl-check.checked { background: var(--c-teal); border-color: var(--c-teal); }
+    .tl-name { flex: 1; font-size: 13px; color: var(--c-text); line-height: 1.4; }
+    .tl-task.done .tl-name { color: var(--c-text-3); text-decoration: line-through; }
+    .tl-role { font-size: 10px; padding: 2px 7px; border-radius: 20px; flex-shrink: 0; white-space: nowrap; }
+
+    .nodate-hint {
+      font-size: 12px; color: var(--c-text-3); padding: 6px 0 10px;
+      display: flex; align-items: flex-start; gap: 6px; line-height: 1.5;
+    }
+
+    /* add task */
+    .add-task-btn {
+      width: 100%; font-size: 13px; padding: 9px;
+      border: 1px dashed var(--c-border-strong); border-radius: var(--radius-sm);
+      background: transparent; color: var(--c-text-2); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+      margin-top: 10px; min-height: 40px;
+    }
+    .add-task-form { display: none; background: var(--c-bg); border-radius: var(--radius-sm); padding: 12px; margin-top: 8px; }
+    .add-task-form.open { display: block; }
+    .add-task-form input {
+      width: 100%; font-size: 15px; padding: 9px 11px;
+      border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm);
+      background: var(--c-surface); color: var(--c-text);
+      -webkit-appearance: none; margin-bottom: 10px;
+    }
+    .role-picker { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .role-opt {
+      font-size: 12px; padding: 6px 12px; border-radius: 20px;
+      border: 1px solid var(--c-border-strong); background: var(--c-surface);
+      color: var(--c-text-2); cursor: pointer; min-height: 34px;
+      display: flex; align-items: center;
+    }
+    .role-opt.sel { font-weight: 600; }
+
+    /* delete / add event */
+    .del-row { display: flex; justify-content: flex-end; margin-top: 10px; }
+    .del-btn {
+      font-size: 12px; padding: 6px 12px;
+      border: 1px solid var(--c-border); border-radius: 20px;
+      background: transparent; color: var(--c-text-3); cursor: pointer;
+    }
+    .del-btn:hover { color: var(--c-red-text); border-color: var(--c-red); }
+
+    .add-event-btn {
+      width: 100%; font-size: 14px; padding: 13px;
+      border: 1px dashed var(--c-border-strong); border-radius: var(--radius);
+      background: transparent; color: var(--c-text-2); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      margin-top: 4px; min-height: 50px;
+    }
+    .add-event-form { display: none; background: var(--c-surface); border: 0.5px solid var(--c-border); border-radius: var(--radius); padding: 14px; margin-top: 8px; box-shadow: var(--shadow); }
+    .add-event-form.open { display: block; }
+    .aef-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-bottom: 10px; }
+    .aef-item label { display: block; font-size: 11px; color: var(--c-text-3); margin-bottom: 4px; }
+    .aef-item input, .aef-item select {
+      width: 100%; font-size: 15px; padding: 9px 11px;
+      border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm);
+      background: var(--c-bg); color: var(--c-text); -webkit-appearance: none;
+    }
+    .aef-full { grid-column: 1 / -1; }
+
+    /* loading */
+    #loading { display: flex; align-items: center; justify-content: center; min-height: 100vh; flex-direction: column; gap: 12px; }
+    .spinner { width: 28px; height: 28px; border: 2px solid var(--c-border); border-top-color: var(--c-teal); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* toast */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: var(--c-text); color: var(--c-bg);
+      padding: 10px 20px; border-radius: 50px; font-size: 13px;
+      transition: transform 0.3s; z-index: 999; white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* user menu */
+    .user-menu {
+      display: none; position: fixed; top: 56px; right: 12px; z-index: 200;
+      background: var(--c-surface); border: 0.5px solid var(--c-border);
+      border-radius: var(--radius); box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      padding: 8px 0; min-width: 160px;
+    }
+    .user-menu.open { display: block; }
+    .um-name { font-size: 13px; font-weight: 600; padding: 8px 16px 4px; color: var(--c-text); }
+    .um-item { font-size: 13px; padding: 10px 16px; color: var(--c-text-2); cursor: pointer; }
+    .um-item:active { background: var(--c-bg); }
+    .um-divider { height: 0.5px; background: var(--c-border); margin: 4px 0; }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="spinner"></div>
+  <div style="font-size:13px;color:#999">読み込み中...</div>
+</div>
+
+<!-- Login -->
+<div id="login-screen" style="display:none">
+  <div class="login-logo">✈️</div>
+  <div class="login-title">OIT旅サー 活動管理</div>
+  <div class="login-sub">メンバー専用ページです。<br>LINEアカウントでログインしてください。</div>
+  <button class="line-login-btn" onclick="loginWithLINE()">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.04 2 11.04c0 4.5 3.59 8.26 8.45 8.93.31.07.73.21.84.48.1.24.06.62.03.86l-.14.82c-.04.24-.19.95.83.52 1.02-.43 5.52-3.25 7.53-5.56C20.83 15.4 22 13.32 22 11.04 22 6.04 17.52 2 12 2z"/></svg>
+    LINEでログイン
+  </button>
+  <div class="login-note">※ サークルメンバーのみアクセスできます。<br>アクセス権がない場合は代表に連絡してください。</div>
+</div>
+
+<!-- Unauthorized -->
+<div id="unauthorized-screen" style="display:none">
+  <div class="unauth-icon">🔒</div>
+  <div class="unauth-title">アクセスできません</div>
+  <div class="unauth-sub">このアカウントはメンバーとして<br>登録されていません。<br>代表に連絡してLINE IDを登録してもらってください。</div>
+  <button class="logout-btn-small" onclick="logout()">別のアカウントでログイン</button>
+</div>
+
+<!-- App -->
+<div id="app" style="display:none">
+  <div class="topbar">
+    <span style="font-size:18px">✈️</span>
+    <span class="topbar-title">OIT旅サー</span>
+    <div id="avatar-wrap" onclick="toggleUserMenu()"></div>
+  </div>
+  <div class="user-menu" id="user-menu">
+    <div class="um-name" id="um-name"></div>
+    <div class="um-divider"></div>
+    <div class="um-item" onclick="logout()">ログアウト</div>
+  </div>
+
+  <div class="main-pad">
+    <div class="filter-label">自分の役職で絞る</div>
+    <div class="chip-row" id="role-chips"></div>
+    <div id="events-container"></div>
+    <button class="add-event-btn" id="add-event-btn" onclick="toggleAddEventForm()">＋ イベントを追加</button>
+    <div class="add-event-form" id="add-event-form">
+      <div class="aef-grid">
+        <div class="aef-item aef-full">
+          <label>イベント名</label>
+          <input type="text" id="nef-title" placeholder="例: 新歓飲み会" />
+        </div>
+        <div class="aef-item">
+          <label>月</label>
+          <select id="nef-month"></select>
+        </div>
+        <div class="aef-item">
+          <label>種別</label>
+          <select id="nef-type"></select>
+        </div>
+      </div>
+      <button class="save-btn" onclick="commitNewEvent()">追加する</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const ROLE_COLORS = {
+  '企画': { bg: 'var(--c-blue-bg)', text: 'var(--c-blue-text)' },
+  '渉外': { bg: 'var(--c-teal-bg)', text: 'var(--c-teal-text)' },
+  '会計': { bg: 'var(--c-amber-bg)', text: 'var(--c-amber-text)' },
+  '代表': { bg: 'var(--c-purple-bg)', text: 'var(--c-purple-text)' },
+  '宣伝': { bg: 'var(--c-coral-bg)', text: 'var(--c-coral-text)' },
+};
+const ROLES = Object.keys(ROLE_COLORS);
+
+const TASK_TEMPLATES = {
+  '飲み会系': [
+    { name: '日程・場所候補を出す', role: '企画', offset: -21 },
+    { name: '参加者確認・出欠集計', role: '渉外', offset: -14 },
+    { name: '予約を取る', role: '渉外', offset: -10 },
+    { name: '集金方法を決める', role: '会計', offset: -7 },
+    { name: 'SNS告知', role: '宣伝', offset: -10 },
+    { name: '当日集金・精算', role: '会計', offset: 0 },
+  ],
+  '日帰り系': [
+    { name: '目的地・ルート候補を出す', role: '企画', offset: -28 },
+    { name: '予算案を作る', role: '企画', offset: -21 },
+    { name: '参加者確認・出欠集計', role: '渉外', offset: -21 },
+    { name: '交通手段の手配', role: '渉外', offset: -14 },
+    { name: '安全管理チェック', role: '渉外', offset: -3 },
+    { name: 'SNS告知・写真投稿', role: '宣伝', offset: -14 },
+    { name: '集金・立替精算', role: '会計', offset: 1 },
+    { name: '活動記録をまとめる', role: '代表', offset: 3 },
+  ],
+  '泊まり系': [
+    { name: '行先・宿候補を出す', role: '企画', offset: -42 },
+    { name: '詳細スケジュール作成', role: '企画', offset: -28 },
+    { name: '予算案を作る', role: '企画', offset: -28 },
+    { name: '参加者確認・出欠集計', role: '渉外', offset: -35 },
+    { name: '宿・交通の予約', role: '渉外', offset: -28 },
+    { name: '安全管理・緊急連絡先整理', role: '渉外', offset: -7 },
+    { name: 'SNS告知・写真投稿', role: '宣伝', offset: -21 },
+    { name: '事前集金', role: '会計', offset: -14 },
+    { name: '当日精算', role: '会計', offset: 0 },
+    { name: '活動記録をまとめる', role: '代表', offset: 3 },
+  ],
+};
+
+const MONTHS = ['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
+const MONTH_STYLE = {
+  '4月':['var(--c-blue-bg)','var(--c-blue-text)'],
+  '5月':['var(--c-teal-bg)','var(--c-teal-text)'],
+  '6月':['var(--c-green-bg)','var(--c-green-text)'],
+  '7月':['var(--c-amber-bg)','var(--c-amber-text)'],
+  '8月':['var(--c-coral-bg)','var(--c-coral-text)'],
+  '9月':['var(--c-green-bg)','var(--c-green-text)'],
+  '10月':['var(--c-amber-bg)','var(--c-amber-text)'],
+  '11月':['var(--c-purple-bg)','var(--c-purple-text)'],
+  '12月':['var(--c-red-bg)','var(--c-red-text)'],
+  '1月':['var(--c-blue-bg)','var(--c-blue-text)'],
+  '2月':['var(--c-teal-bg)','var(--c-teal-text)'],
+  '3月':['var(--c-green-bg)','var(--c-green-text)'],
+};
+
+// ============================================================
+// STATE
+// ============================================================
+let supabase = null;
+let currentUser = null;
+let events = [];
+let tasks = {};
+let openEvents = new Set();
+let editingEvent = null;
+let addingTaskFor = null;
+let selectedRole = 'all';
+let newTaskRole = '企画';
+
+// ============================================================
+// INIT
+// ============================================================
+window.addEventListener('load', async () => {
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // LINEログインのコールバック処理
+  const params = new URLSearchParams(location.search);
+  if (params.get('code') && params.get('state')) {
+    await handleLineCallback(params.get('code'), params.get('state'));
+    history.replaceState({}, '', location.pathname);
+    return;
+  }
+
+  const saved = localStorage.getItem('oit_user');
+  if (saved) {
+    currentUser = JSON.parse(saved);
+    await checkMemberAndLoad();
+  } else {
+    show('login-screen');
+  }
+});
+
+function show(id) {
+  ['loading','login-screen','unauthorized-screen','app'].forEach(s => {
+    document.getElementById(s).style.display = s === id ? 'flex' : 'none';
+  });
+  if (id === 'app') document.getElementById('app').style.display = 'block';
+}
+
+// ============================================================
+// LINE LOGIN
+// ============================================================
+function loginWithLINE() {
+  const state = Math.random().toString(36).slice(2);
+  sessionStorage.setItem('line_state', state);
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: LINE_CLIENT_ID,
+    redirect_uri: APP_URL,
+    state,
+    scope: 'profile openid',
+  });
+  location.href = `https://access.line.me/oauth2/v2.1/authorize?${params}`;
+}
+
+async function handleLineCallback(code, state) {
+  if (state !== sessionStorage.getItem('line_state')) { show('login-screen'); return; }
+  show('loading');
+  try {
+    // Supabase Edge Function でトークン交換・プロフィール取得
+    const { data, error } = await supabase.functions.invoke('line-auth', {
+      body: { code, redirect_uri: APP_URL }
+    });
+    if (error || !data?.userId) throw error || new Error('auth failed');
+    currentUser = { userId: data.userId, displayName: data.displayName, pictureUrl: data.pictureUrl };
+    localStorage.setItem('oit_user', JSON.stringify(currentUser));
+    await checkMemberAndLoad();
+  } catch (e) {
+    console.error(e);
+    show('login-screen');
+    toast('ログインに失敗しました');
+  }
+}
+
+async function checkMemberAndLoad() {
+  show('loading');
+  const { data, error } = await supabase
+    .from('members')
+    .select('*')
+    .eq('line_user_id', currentUser.userId)
+    .single();
+
+  if (error || !data) {
+    show('unauthorized-screen');
+    return;
+  }
+  currentUser.role = data.role;
+  currentUser.name = data.name || currentUser.displayName;
+  initApp();
+}
+
+function logout() {
+  localStorage.removeItem('oit_user');
+  currentUser = null;
+  document.getElementById('user-menu').classList.remove('open');
+  show('login-screen');
+}
+
+function toggleUserMenu() {
+  document.getElementById('user-menu').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#avatar-wrap') && !e.target.closest('#user-menu')) {
+    document.getElementById('user-menu').classList.remove('open');
+  }
+});
+
+// ============================================================
+// APP INIT
+// ============================================================
+function initApp() {
+  // アバター設定
+  const wrap = document.getElementById('avatar-wrap');
+  if (currentUser.pictureUrl) {
+    wrap.innerHTML = `<img class="topbar-avatar" src="${currentUser.pictureUrl}" alt="avatar" />`;
+  } else {
+    const initials = (currentUser.name||'?').slice(0,1);
+    wrap.innerHTML = `<div class="topbar-avatar-placeholder">${initials}</div>`;
+  }
+  document.getElementById('um-name').textContent = currentUser.name || currentUser.displayName || '';
+
+  // セレクトボックス初期化
+  const ms = document.getElementById('nef-month');
+  ms.innerHTML = MONTHS.map(m => `<option value="${m}">${m}</option>`).join('');
+  const ts = document.getElementById('nef-type');
+  ts.innerHTML = Object.keys(TASK_TEMPLATES).map(t => `<option value="${t}">${t}</option>`).join('');
+
+  renderRoleChips();
+  loadData();
+  show('app');
+}
+
+// ============================================================
+// DATA (Supabase)
+// ============================================================
+async function loadData() {
+  const [evRes, taskRes] = await Promise.all([
+    supabase.from('events').select('*').order('sort_order', { ascending: true }),
+    supabase.from('tasks').select('*'),
+  ]);
+  events = evRes.data || [];
+  const allTasks = taskRes.data || [];
+  tasks = {};
+  allTasks.forEach(t => {
+    if (!tasks[t.event_id]) tasks[t.event_id] = [];
+    tasks[t.event_id].push(t);
+  });
+  renderEvents();
+}
+
+async function saveEvent(ev) {
+  const { error } = await supabase.from('events').upsert({
+    id: ev.id, title: ev.title, month: ev.month, type: ev.type,
+    date: ev.date || null, place: ev.place || null, memo: ev.memo || null,
+    sort_order: ev.sort_order || 0,
+  });
+  if (error) { toast('保存に失敗しました'); console.error(error); }
+}
+
+async function saveTask(t) {
+  const { error } = await supabase.from('tasks').upsert({
+    id: t.id, event_id: t.event_id, name: t.name,
+    role: t.role, done: t.done, offset_days: t.offset_days ?? null,
+  });
+  if (error) { toast('保存に失敗しました'); console.error(error); }
+}
+
+async function deleteEventDB(evId) {
+  await supabase.from('tasks').delete().eq('event_id', evId);
+  await supabase.from('events').delete().eq('id', evId);
+}
+
+async function insertEvent(ev) {
+  const { data, error } = await supabase.from('events').insert({
+    title: ev.title, month: ev.month, type: ev.type,
+    date: null, place: null, memo: null, sort_order: events.length,
+  }).select().single();
+  if (error) { toast('追加に失敗しました'); console.error(error); return null; }
+  return data;
+}
+
+async function insertTasks(evId, type) {
+  const tpls = TASK_TEMPLATES[type] || [];
+  const rows = tpls.map((t, i) => ({
+    event_id: evId, name: t.name, role: t.role,
+    done: false, offset_days: t.offset ?? null, sort_order: i,
+  }));
+  const { data, error } = await supabase.from('tasks').insert(rows).select();
+  if (error) { console.error(error); return []; }
+  return data;
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function getProgress(evId) {
+  const t = tasks[evId]; if (!t || !t.length) return 0;
+  return Math.round(t.filter(x => x.done).length / t.length * 100);
+}
+
+function parseDate(str) {
+  if (!str) return null;
+  const m = str.match(/(\d{1,2})[\/\-.](\d{1,2})/);
+  if (!m) return null;
+  const now = new Date(); let year = now.getFullYear();
+  const d = new Date(year, +m[1]-1, +m[2]);
+  if (d < new Date(year, now.getMonth()-3, 1)) d.setFullYear(year+1);
+  return d;
+}
+
+function calcDeadline(eventDate, offset) {
+  if (!eventDate || offset == null) return null;
+  const d = new Date(eventDate); d.setDate(d.getDate() + offset); return d;
+}
+
+function fmt(d) { return d ? `${d.getMonth()+1}/${d.getDate()}` : ''; }
+
+function deadlineInfo(d, done) {
+  if (!d) return { text: '日程未定', cls: 'nodate', dot: 'var(--c-border-strong)' };
+  const days = Math.round((d.setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
+  if (done) return { text: `${fmt(d)} 期限`, cls: 'ok', dot: 'var(--c-teal)' };
+  if (days < 0) return { text: `${fmt(d)} 期限切れ`, cls: 'overdue', dot: 'var(--c-red)' };
+  if (days === 0) return { text: `今日が期限 (${fmt(d)})`, cls: 'soon', dot: 'var(--c-amber)' };
+  if (days <= 7) return { text: `${fmt(d)} まで（あと${days}日）`, cls: 'soon', dot: 'var(--c-amber)' };
+  return { text: `${fmt(d)} まで（あと${days}日）`, cls: 'ok', dot: 'var(--c-teal)' };
+}
+
+function groupByDeadline(evId, eventDate, type) {
+  const evTasks = tasks[evId] || [];
+  const tplMap = {};
+  (TASK_TEMPLATES[type] || []).forEach(t => { tplMap[t.name] = t.offset; });
+  const groups = {};
+  evTasks.forEach(t => {
+    const offset = t.offset_days ?? tplMap[t.name] ?? null;
+    const dl = calcDeadline(eventDate, offset);
+    const key = dl ? dl.toDateString() : 'nodate';
+    if (!groups[key]) groups[key] = { date: dl, taskList: [] };
+    groups[key].taskList.push({ ...t, _offset: offset });
+  });
+  return Object.values(groups).sort((a, b) => {
+    if (!a.date && !b.date) return 0; if (!a.date) return 1; if (!b.date) return -1;
+    return a.date - b.date;
+  });
+}
+
+function renderRoleChips() {
+  const c = document.getElementById('role-chips');
+  c.innerHTML = `<div class="chip${selectedRole==='all'?' active':''}" onclick="setRole('all')">全員</div>`
+    + ROLES.map(r => {
+      const rc = ROLE_COLORS[r]; const isA = selectedRole === r;
+      return `<div class="chip${isA?' active':''}" style="${isA?`background:${rc.bg};color:${rc.text};border-color:${rc.text}`:''}" onclick="setRole('${r}')">${r}</div>`;
+    }).join('');
+}
+
+function setRole(role) { selectedRole = role; renderRoleChips(); renderEvents(); }
+
+function renderEvents() {
+  const c = document.getElementById('events-container');
+  c.innerHTML = '';
+  const filtered = selectedRole === 'all'
+    ? events
+    : events.filter(ev => (tasks[ev.id]||[]).some(t => t.role === selectedRole));
+
+  if (!filtered.length) {
+    c.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--c-text-3);font-size:14px">該当するイベントがありません</div>';
+    return;
+  }
+
+  filtered.forEach(ev => {
+    const prog = getProgress(ev.id);
+    const isOpen = openEvents.has(ev.id);
+    const ms = MONTH_STYLE[ev.month] || ['var(--c-blue-bg)','var(--c-blue-text)'];
+    const progColor = prog===100 ? 'var(--c-teal)' : prog>0 ? 'var(--c-blue)' : 'var(--c-border)';
+    const eventDate = parseDate(ev.date);
+    const isEditing = editingEvent === ev.id;
+    const isAddingTask = addingTaskFor === ev.id;
+
+    const monthOpts = MONTHS.map(m => `<option value="${m}"${m===ev.month?' selected':''}>${m}</option>`).join('');
+    const typeOpts = Object.keys(TASK_TEMPLATES).map(t => `<option value="${t}"${t===ev.type?' selected':''}>${t}</option>`).join('');
+
+    // date area
+    const dateArea = !isEditing ? `
+      ${ev.date
+        ? `<div class="date-box">
+            <div class="ev-title-wrap">
+              <div class="date-main">${ev.date} <span class="date-provisional">（仮）</span></div>
+              <div style="font-size:11px;color:var(--c-amber-text);margin-top:3px">± 1週間程度前後する可能性があります</div>
+            </div>
+           </div>`
+        : `<div style="font-size:13px;color:var(--c-text-3);padding:4px 0 6px">日程未定</div>`
+      }` : '';
+
+    // edit form
+    const editForm = `<div class="edit-form${isEditing?' open':''}" id="ef-${ev.id}">
+      <div class="ef-grid">
+        <div class="ef-item ef-full"><label>イベント名</label><input type="text" id="ef-title-${ev.id}" value="${escHtml(ev.title)}" /></div>
+        <div class="ef-item"><label>月</label><select id="ef-month-${ev.id}">${monthOpts}</select></div>
+        <div class="ef-item"><label>種別</label><select id="ef-type-${ev.id}">${typeOpts}</select></div>
+        <div class="ef-item ef-full">
+          <label>仮日程（例: 6/14）</label>
+          <input type="text" id="ef-date-${ev.id}" value="${ev.date||''}" placeholder="6/14" inputmode="numeric" />
+          <div class="ef-date-hint">確定前でOK。± 1週間程度の変動を想定して入力してください</div>
+        </div>
+        <div class="ef-item ef-full"><label>場所（任意）</label><input type="text" id="ef-place-${ev.id}" value="${escHtml(ev.place||'')}" placeholder="例: 梅田 居酒屋" /></div>
+        <div class="ef-item ef-full"><label>メモ・予算（任意）</label><textarea id="ef-memo-${ev.id}" placeholder="例: 一人3,000円くらい">${escHtml(ev.memo||'')}</textarea></div>
+      </div>
+      <button class="save-btn" onclick="saveEdit('${ev.id}')">保存する</button>
+    </div>`;
+
+    // timeline
+    const groups = groupByDeadline(ev.id, eventDate, ev.type);
+    const noDateHint = !eventDate
+      ? `<div class="nodate-hint">📅 仮日程を入力すると準備期限が自動で計算されます</div>`
+      : '';
+    const tlHTML = groups.map(g => {
+      const allDone = g.taskList.every(t => t.done);
+      const info = deadlineInfo(g.date, allDone);
+      const items = g.taskList.map(t => {
+        const rc = ROLE_COLORS[t.role] || { bg:'var(--c-blue-bg)', text:'var(--c-blue-text)' };
+        const isMine = selectedRole !== 'all' && t.role === selectedRole;
+        const isHide = selectedRole !== 'all' && t.role !== selectedRole;
+        return `<div class="tl-task${t.done?' done':''}${isMine?' mine':''}${isHide?' hidden':''}" onclick="toggleTask('${ev.id}','${t.id}')">
+          <div class="tl-check${t.done?' checked':''}">
+            ${t.done ? `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>` : ''}
+          </div>
+          <span class="tl-name">${escHtml(t.name)}</span>
+          <span class="tl-role" style="background:${rc.bg};color:${rc.text}">${t.role}</span>
+        </div>`;
+      }).join('');
+      return `<div class="tl-item">
+        <div class="tl-left"><div class="tl-dot" style="background:${info.dot}"></div><div class="tl-line"></div></div>
+        <div class="tl-right"><div class="tl-dl-label ${info.cls}">${info.text}</div><div class="tl-tasks">${items}</div></div>
+      </div>`;
+    }).join('');
+
+    // add task form
+    const rpHTML = ROLES.map(r => {
+      const rc = ROLE_COLORS[r]; const isSel = r === newTaskRole;
+      return `<div class="role-opt${isSel?' sel':''}" style="${isSel?`background:${rc.bg};color:${rc.text};border-color:${rc.text}`:''}" onclick="selectTaskRole('${ev.id}','${r}')">${r}</div>`;
+    }).join('');
+    const addTaskForm = `<div class="add-task-form${isAddingTask?' open':''}" id="atf-${ev.id}">
+      <input type="text" id="atf-name-${ev.id}" placeholder="タスク名を入力" />
+      <div style="font-size:11px;color:var(--c-text-3);margin-bottom:6px">担当役職</div>
+      <div class="role-picker">${rpHTML}</div>
+      <button class="save-btn" onclick="commitTask('${ev.id}')">追加する</button>
+    </div>`;
+
+    const card = document.createElement('div');
+    card.className = 'event-card';
+    card.innerHTML = `
+      <div class="event-header" onclick="toggleEvent('${ev.id}')">
+        <span class="month-badge" style="background:${ms[0]};color:${ms[1]}">${ev.month}</span>
+        <div class="ev-title-wrap">
+          <div class="ev-title">${escHtml(ev.title)}</div>
+          <div class="ev-sub">${ev.type}${ev.date ? ' · ' + ev.date + ' 頃' : ''}</div>
+        </div>
+        <span class="prog-pct">${prog}%</span>
+        <div class="chevron${isOpen?' open':''}">⌄</div>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${prog}%;background:${progColor}"></div></div>
+      <div class="event-body${isOpen?' open':''}">
+        <div class="sec-label">
+          日程
+          <button class="edit-toggle-btn" onclick="toggleEdit('${ev.id}');event.stopPropagation()">
+            ${isEditing ? '✕ 閉じる' : '✎ 編集'}
+          </button>
+        </div>
+        ${editForm}
+        ${dateArea}
+        <div class="sec-label" style="margin-top:14px">タスク・準備スケジュール</div>
+        ${noDateHint}
+        <div class="timeline">${tlHTML}</div>
+        <button class="add-task-btn" onclick="toggleAddTask('${ev.id}')">
+          ${isAddingTask ? '✕ キャンセル' : '＋ タスクを追加'}
+        </button>
+        ${addTaskForm}
+        <div class="del-row">
+          <button class="del-btn" onclick="deleteEvent('${ev.id}')">🗑 イベントを削除</button>
+        </div>
+      </div>`;
+    c.appendChild(card);
+  });
+}
+
+// ============================================================
+// ACTIONS
+// ============================================================
+function toggleEvent(id) {
+  if (openEvents.has(id)) openEvents.delete(id); else openEvents.add(id);
+  renderEvents();
+}
+
+async function toggleTask(evId, taskId) {
+  const t = (tasks[evId]||[]).find(x => String(x.id) === String(taskId));
+  if (!t) return;
+  t.done = !t.done;
+  renderEvents();
+  await saveTask(t);
+}
+
+function toggleEdit(evId) {
+  editingEvent = editingEvent === evId ? null : evId;
+  renderEvents();
+}
+
+async function saveEdit(evId) {
+  const ev = events.find(x => String(x.id) === String(evId)); if (!ev) return;
+  const newType = document.getElementById(`ef-type-${evId}`).value;
+  const oldType = ev.type;
+  ev.title = document.getElementById(`ef-title-${evId}`).value || ev.title;
+  ev.month = document.getElementById(`ef-month-${evId}`).value;
+  ev.type = newType;
+  ev.date = document.getElementById(`ef-date-${evId}`).value;
+  ev.place = document.getElementById(`ef-place-${evId}`).value;
+  ev.memo = document.getElementById(`ef-memo-${evId}`).value;
+  editingEvent = null;
+
+  await saveEvent(ev);
+
+  if (newType !== oldType) {
+    await supabase.from('tasks').delete().eq('event_id', evId);
+    const newTasks = await insertTasks(evId, newType);
+    tasks[evId] = newTasks;
+  }
+  renderEvents();
+  toast('保存しました');
+}
+
+function toggleAddTask(evId) {
+  addingTaskFor = addingTaskFor === evId ? null : evId;
+  renderEvents();
+}
+
+function selectTaskRole(evId, role) { newTaskRole = role; renderEvents(); }
+
+async function commitTask(evId) {
+  const inp = document.getElementById(`atf-name-${evId}`);
+  const name = inp?.value.trim(); if (!name) return;
+  const row = { event_id: evId, name, role: newTaskRole, done: false, offset_days: null };
+  const { data, error } = await supabase.from('tasks').insert(row).select().single();
+  if (error) { toast('追加に失敗しました'); return; }
+  if (!tasks[evId]) tasks[evId] = [];
+  tasks[evId].push(data);
+  addingTaskFor = null;
+  renderEvents();
+  toast('タスクを追加しました');
+}
+
+async function deleteEvent(evId) {
+  if (!confirm('このイベントを削除しますか？')) return;
+  await deleteEventDB(evId);
+  events = events.filter(x => String(x.id) !== String(evId));
+  delete tasks[evId];
+  openEvents.delete(evId);
+  renderEvents();
+  toast('削除しました');
+}
+
+function toggleAddEventForm() {
+  document.getElementById('add-event-form').classList.toggle('open');
+}
+
+async function commitNewEvent() {
+  const title = document.getElementById('nef-title').value.trim();
+  if (!title) { toast('イベント名を入力してください'); return; }
+  const month = document.getElementById('nef-month').value;
+  const type = document.getElementById('nef-type').value;
+  const newEv = await insertEvent({ title, month, type });
+  if (!newEv) return;
+  const newTasks = await insertTasks(newEv.id, type);
+  events.push(newEv);
+  tasks[newEv.id] = newTasks;
+  openEvents.add(newEv.id);
+  document.getElementById('nef-title').value = '';
+  document.getElementById('add-event-form').classList.remove('open');
+  renderEvents();
+  toast('イベントを追加しました');
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>
