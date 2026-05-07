@@ -172,6 +172,11 @@
     .toast.show { transform: translateX(-50%) translateY(0); }
 
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 500; align-items: flex-end; }
+    .deadline-edit-form { display: none; background: var(--c-bg); border-radius: var(--radius-sm); padding: 10px; margin-top: 6px; }
+    .deadline-edit-form.open { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .deadline-edit-form select { font-size: 14px; padding: 7px 10px; border: 1px solid var(--c-border-strong); border-radius: var(--radius-sm); background: var(--c-surface); color: var(--c-text); -webkit-appearance: none; }
+    .deadline-save-btn { font-size: 13px; padding: 7px 14px; border-radius: var(--radius-sm); border: none; background: var(--c-teal); color: #fff; cursor: pointer; font-weight: 600; white-space: nowrap; }
+    .deadline-clear-btn { font-size: 13px; padding: 7px 14px; border-radius: var(--radius-sm); border: 1px solid var(--c-border-strong); background: transparent; color: var(--c-text-2); cursor: pointer; white-space: nowrap; }
     .modal-overlay.open { display: flex; }
     .modal-sheet { background: var(--c-surface); border-radius: 20px 20px 0 0; width: 100%; max-height: 80vh; overflow-y: auto; padding: 0 0 40px; }
     .modal-handle { width: 40px; height: 4px; background: var(--c-border-strong); border-radius: 2px; margin: 12px auto 16px; }
@@ -231,6 +236,7 @@
     <div class="um-divider"></div>
     <div class="um-item" onclick="openMembersModal()">👥 メンバー一覧</div>
     <div class="um-item" onclick="sendSelfNotifyTest()">🔔 通知テスト（自分宛）</div>
+    <div class="um-item" id="um-notify-toggle" onclick="toggleNotify()"></div>
     <div class="um-item" id="um-notify-test" onclick="sendNotifyTest()" style="display:none">📣 全員通知テスト（代表用）</div>
     <div class="um-divider"></div>
     <div class="um-section-label">年度</div>
@@ -402,6 +408,7 @@ async function checkMemberAndLoad() {
   if (data.banned) { show('unauthorized-screen'); return; }
   currentUser.role = data.role;
   currentUser.name = data.name || currentUser.displayName;
+  currentUser.notify = data.notify !== false;
   initApp();
 }
 
@@ -458,6 +465,7 @@ function initApp() {
   }).join('');
 
   document.getElementById('um-notify-test').style.display = currentUser.role === '代表' ? 'block' : 'none';
+  updateNotifyToggle();
 
   // 年度切り替えメニュー
   renderYearMenu();
@@ -515,6 +523,53 @@ async function sendNotifyTest() {
 }
 
 // ============================================================
+// DEADLINE EDIT
+// ============================================================
+function toggleDeadlineEdit(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('open');
+}
+
+async function saveDeadline(evId, dlEditId, taskIds) {
+  const m = document.getElementById(`${dlEditId}-m`)?.value;
+  const d = document.getElementById(`${dlEditId}-d`)?.value;
+  if (!m || !d) { toast('月と日を選択してください'); return; }
+
+  const ev = events.find(x => String(x.id) === String(evId));
+  if (!ev?.date) { toast('先にイベントの日程を入力してください'); return; }
+
+  // イベント日からのoffset日数を計算
+  const evDate = parseDate(ev.date);
+  const newDeadline = new Date(evDate.getFullYear(), parseInt(m)-1, parseInt(d));
+  const offsetDays = Math.round((newDeadline - evDate) / 86400000);
+
+  // 対象タスクのoffset_daysを更新
+  for (const taskId of taskIds) {
+    const t = (tasks[evId]||[]).find(x => String(x.id) === String(taskId));
+    if (!t) continue;
+    t.offset_days = offsetDays;
+    await dbClient.from('tasks').update({ offset_days: offsetDays }).eq('id', taskId);
+  }
+
+  document.getElementById(dlEditId)?.classList.remove('open');
+  renderEvents();
+  toast(`期限を${m}/${d}に変更しました`);
+}
+
+async function clearDeadline(evId, dlEditId, taskIds) {
+  for (const taskId of taskIds) {
+    const t = (tasks[evId]||[]).find(x => String(x.id) === String(taskId));
+    if (!t) continue;
+    t.offset_days = null;
+    await dbClient.from('tasks').update({ offset_days: null }).eq('id', taskId);
+  }
+  document.getElementById(dlEditId)?.classList.remove('open');
+  renderEvents();
+  toast('期限をデフォルトに戻しました');
+}
+
+// ============================================================
 // MEMBERS MODAL
 // ============================================================
 async function openMembersModal() {
@@ -546,6 +601,25 @@ function closeMembersModal(e) {
   if (e.target === document.getElementById('members-modal')) {
     document.getElementById('members-modal').classList.remove('open');
   }
+}
+
+function updateNotifyToggle() {
+  const el = document.getElementById('um-notify-toggle');
+  if (!el) return;
+  const isOn = currentUser.notify !== false;
+  el.textContent = isOn ? '🔕 通知をオフにする' : '🔔 通知をオンにする';
+  el.style.color = isOn ? 'var(--c-text-2)' : 'var(--c-amber-text)';
+}
+
+async function toggleNotify() {
+  const newVal = currentUser.notify === false ? true : false;
+  const { error } = await dbClient.from('members').update({ notify: newVal }).eq('line_user_id', currentUser.userId);
+  if (error) { toast('変更に失敗しました'); return; }
+  currentUser.notify = newVal;
+  localStorage.setItem('oit_user', JSON.stringify(currentUser));
+  document.getElementById('user-menu').classList.remove('open');
+  updateNotifyToggle();
+  toast(newVal ? '通知をオンにしました' : '通知をオフにしました');
 }
 
 async function sendSelfNotifyTest() {
@@ -762,9 +836,26 @@ function renderEvents() {
           <span class="tl-role" style="background:${rc.bg};color:${rc.text}">${t.role}</span>
         </div>`;
       }).join('');
+      const dlEditId = `dle-${evId}-${g.date ? g.date.toDateString().replace(/ /g,'') : 'nodate'}`;
+      const canEdit = CAN_EDIT_SCHEDULE.includes(currentUser.role);
       return `<div class="tl-item">
         <div class="tl-left"><div class="tl-dot" style="background:${info.dot}"></div><div class="tl-line"></div></div>
-        <div class="tl-right"><div class="tl-dl-label ${info.cls}">${info.text}</div><div class="tl-tasks">${items}</div></div>
+        <div class="tl-right">
+          <div class="tl-dl-label ${info.cls}" ${canEdit ? `onclick="toggleDeadlineEdit('${dlEditId}')" style="cursor:pointer;text-decoration:underline dotted;"` : ''}>${info.text}${canEdit ? ' ✎' : ''}</div>
+          <div class="deadline-edit-form" id="${dlEditId}">
+            <select id="${dlEditId}-m">
+              <option value="">月</option>
+              ${[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<option value="${m}" ${g.date&&g.date.getMonth()+1===m?'selected':''}>${m}月</option>`).join('')}
+            </select>
+            <select id="${dlEditId}-d">
+              <option value="">日</option>
+              ${Array.from({length:31},(_,i)=>i+1).map(d=>`<option value="${d}" ${g.date&&g.date.getDate()===d?'selected':''}>${d}日</option>`).join('')}
+            </select>
+            <button class="deadline-save-btn" onclick="saveDeadline('${evId}', '${dlEditId}', [${g.taskList.map(t=>`'${t.id}'`).join(',')}])">保存</button>
+            <button class="deadline-clear-btn" onclick="clearDeadline('${evId}', '${dlEditId}', [${g.taskList.map(t=>`'${t.id}'`).join(',')}])">元に戻す</button>
+          </div>
+          <div class="tl-tasks">${items}</div>
+        </div>
       </div>`;
     }).join('');
 
